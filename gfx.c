@@ -321,7 +321,7 @@ static void ConvertToTiles8Bpp(unsigned char *src, unsigned char *dest, int numT
     }
 }
 
-void ReadImage(char *path, int tilesWide, int bitDepth, int colsPerChunk, int rowsPerChunk, struct Image *image, bool invertColors)
+void ReadImage(char *path, int tilesWide, int bitDepth, int colsPerChunk, int rowsPerChunk, struct Image *image, bool invertColors, bool noTiles)
 {
     int tileSize = bitDepth * 8; // number of bytes per tile
 
@@ -348,16 +348,37 @@ void ReadImage(char *path, int tilesWide, int bitDepth, int colsPerChunk, int ro
 
     int chunksWide = tilesWide / colsPerChunk; // how many chunks side-by-side are needed for the full width of the image
 
-    switch (bitDepth) {
-    case 1:
-        ConvertFromTiles1Bpp(buffer, image->pixels, numTiles, chunksWide, colsPerChunk, rowsPerChunk, invertColors);
-        break;
-    case 4:
-        ConvertFromTiles4Bpp(buffer, image->pixels, numTiles, chunksWide, colsPerChunk, rowsPerChunk, invertColors);
-        break;
-    case 8:
-        ConvertFromTiles8Bpp(buffer, image->pixels, numTiles, chunksWide, colsPerChunk, rowsPerChunk, invertColors);
-        break;
+    if (noTiles) // btx0 texture format does not split anything into tiles anymore.  there are many textures, but all i care about is the 4bpp stuff
+    {
+        switch (bitDepth) {
+        case 4:
+            memcpy(image->pixels, buffer, tilesWide * tilesTall * tileSize);
+            for (int i = 0; i < tilesWide * tilesTall * tileSize; i++)
+            {
+                unsigned char currentPixelPair = image->pixels[i];
+                image->pixels[i] = (unsigned char)((currentPixelPair << 4) | (currentPixelPair >> 4));
+            }
+            break;
+        case 8:
+            memcpy(image->pixels, buffer, tilesWide * tilesTall * tileSize);
+            break;
+        default:
+            FATAL_ERROR("Can not deal with bit depth %d without tiles.\n", bitDepth);
+        }
+    }
+    else
+    {
+        switch (bitDepth) {
+        case 1:
+            ConvertFromTiles1Bpp(buffer, image->pixels, numTiles, chunksWide, colsPerChunk, rowsPerChunk, invertColors);
+            break;
+        case 4:
+            ConvertFromTiles4Bpp(buffer, image->pixels, numTiles, chunksWide, colsPerChunk, rowsPerChunk, invertColors);
+            break;
+        case 8:
+            ConvertFromTiles8Bpp(buffer, image->pixels, numTiles, chunksWide, colsPerChunk, rowsPerChunk, invertColors);
+            break;
+        }
     }
 
     free(buffer);
@@ -455,7 +476,7 @@ uint32_t ReadNtrImage(char *path, int tilesWide, int bitDepth, int colsPerChunk,
     return key;
 }
 
-void WriteImage(char *path, int numTiles, int bitDepth, int colsPerChunk, int rowsPerChunk, struct Image *image, bool invertColors)
+void WriteImage(char *path, int numTiles, int bitDepth, int colsPerChunk, int rowsPerChunk, struct Image *image, bool invertColors, bool noTiles)
 {
     int tileSize = bitDepth * 8; // number of bytes per tile
 
@@ -489,16 +510,37 @@ void WriteImage(char *path, int numTiles, int bitDepth, int colsPerChunk, int ro
 
     int chunksWide = tilesWide / colsPerChunk; // how many chunks side-by-side are needed for the full width of the image
 
-    switch (bitDepth) {
-    case 1:
-        ConvertToTiles1Bpp(image->pixels, buffer, numTiles, chunksWide, colsPerChunk, rowsPerChunk, invertColors);
-        break;
-    case 4:
-        ConvertToTiles4Bpp(image->pixels, buffer, numTiles, chunksWide, colsPerChunk, rowsPerChunk, invertColors);
-        break;
-    case 8:
-        ConvertToTiles8Bpp(image->pixels, buffer, numTiles, chunksWide, colsPerChunk, rowsPerChunk, invertColors);
-        break;
+    if (noTiles)
+    {
+        switch (bitDepth) {
+        case 4:
+            memcpy(buffer, image->pixels, bufferSize);
+            for (int i = 0; i < tilesWide * tilesTall * tileSize; i++)
+            {
+                unsigned char currentPixelPair = buffer[i];
+                buffer[i] = (unsigned char)((currentPixelPair << 4) | (currentPixelPair >> 4));
+            }
+            break;
+        case 8:
+            memcpy(image->pixels, buffer, tilesWide * tilesTall * tileSize);
+            break;
+        default:
+            FATAL_ERROR("Can not deal with bit depth %d without tiles.\n", bitDepth);
+        }
+    }
+    else
+    {
+        switch (bitDepth) {
+        case 1:
+            ConvertToTiles1Bpp(image->pixels, buffer, numTiles, chunksWide, colsPerChunk, rowsPerChunk, invertColors);
+            break;
+        case 4:
+            ConvertToTiles4Bpp(image->pixels, buffer, numTiles, chunksWide, colsPerChunk, rowsPerChunk, invertColors);
+            break;
+        case 8:
+            ConvertToTiles8Bpp(image->pixels, buffer, numTiles, chunksWide, colsPerChunk, rowsPerChunk, invertColors);
+            break;
+        }
     }
 
     WriteWholeFile(path, buffer, bufferSize);
